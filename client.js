@@ -1,4 +1,6 @@
 const listOfVidsElm = document.getElementById("listOfRequests");
+let sortBy = "newFirst";
+let searchTerm = "";
 
 function renderSingleVidReq(vidInfo, isPrepend = false) {
     const vidReqContainerElm = document.createElement("div");
@@ -74,9 +76,11 @@ function renderSingleVidReq(vidInfo, isPrepend = false) {
       });
   });
 }
-function loadAllVidReqs(sortBy = "newFirst") {
+function loadAllVidReqs(sortBy = "newFirst", searchTerm = "") {
   // console.log({sortBy})
-  fetch(`http://localhost:7777/video-request?sortBy=${sortBy}`)
+  fetch(
+    `http://localhost:7777/video-request?sortBy=${sortBy}&searchTerm=${searchTerm}`
+  )
     .then((blob) => blob.json())
     .then((data) => {
       listOfVidsElm.innerHTML = "";
@@ -87,22 +91,30 @@ function loadAllVidReqs(sortBy = "newFirst") {
       });
     });
 }
+function debounce(fn, time) {
+  let timeout;
+
+  return function (...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => fn.apply(this, args), time);
+  };
+}
 document.addEventListener("DOMContentLoaded", function () {
   const formVidReqElm = document.getElementById("formVideoRequest");
 
   const sortByElms = document.querySelectorAll("[id*=sort_by_]");
-
+  const searchBoxElm = document.getElementById("search_box");
   loadAllVidReqs();
   sortByElms.forEach((elm) => {
     elm.addEventListener("click", function (e) {
       // console.log(e);
       e.preventDefault();
-      const sortBy = this.querySelector("input");
+      sortBy = this.querySelector("input").value;
 
       // console.log(sortBy);
-      loadAllVidReqs(sortBy.value);
+      loadAllVidReqs(sortBy);
       this.classList.add("active");
-      if (sortBy.value === "topVotedFirst") {
+      if (sortBy === "topVotedFirst") {
         document.getElementById("sort_by_new").classList.remove("active");
       } else {
         document.getElementById("sort_by_top").classList.remove("active");
@@ -110,6 +122,13 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
+  searchBoxElm.addEventListener(
+    "input",
+    debounce((e) => {
+      searchTerm = e.target.value;
+      loadAllVidReqs(sortBy, searchTerm);
+    }, 300)
+  );
   formVidReqElm.addEventListener("submit", (e) => {
     e.preventDefault();
     const fromData = new FormData(formVidReqElm);
