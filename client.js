@@ -1,8 +1,11 @@
+// const { filter } = require("bluebird");
+
 const listOfVidsElm = document.getElementById("listOfRequests");
 const SUPER_USER_ID = "123";
 const state = {
     sortBy: "newFirst",
     searchTerm: "",
+    filterBy: "all",
     userId: "",
     isSuperUser: false,
 };
@@ -51,6 +54,16 @@ function renderSingleVidReq(vidInfo, isPrepend = false) {
             } 
             </p>
         </div>
+       
+        ${
+          vidInfo.status === "done"
+            ? ` <div class="ml-auto mr-3">
+        <iframe width="240" height="135"
+        src="http://www.youtube.com/embed/${vidInfo.video_ref.link}"
+        frameborder='0' allowfullscreen></iframe>
+    </div>`
+            : ""
+        }
         <div class="d-flex flex-column text-center">
             <a  id="votes_ups_${vidInfo._id}" class="btn btn-link">🔺</a>
             <h3 id="score_vote_${vidInfo._id}">${
@@ -60,12 +73,18 @@ function renderSingleVidReq(vidInfo, isPrepend = false) {
         </div>
     </div>
     <div class="card-footer d-flex flex-row justify-content-between">
-        <div>
-            <span class="text-info">${
-              vidInfo.status
-            }</span> &bullet; added by <strong>${
-    vidInfo.author_name
-  }</strong> on
+        <div class="${
+          vidInfo.status === "done"
+            ? "text-success"
+            : vidInfo.status === "planned"
+            ? "text-primary"
+            : ""
+        }">
+            <span class="text-info">${vidInfo.status.toUpperCase()} ${
+    vidInfo.status === "done"
+      ? `on ${new Date(vidInfo.video_ref.date).toLocaleDateString()}`
+      : ""
+  }</span> &bullet; added by <strong>${vidInfo.author_name}</strong> on
             <strong>${new Date(
               vidInfo.submit_date
             ).toLocaleDateString()}</strong>
@@ -96,19 +115,7 @@ function renderSingleVidReq(vidInfo, isPrepend = false) {
   const adminVideoResContainer = document.getElementById(
     `admin_video_res_container_${vidInfo._id}`
   );
-  adminDeleteVideoReqElm.addEventListener("click", (e) => {
-    const isSure = confirm(`are you sure to delete${vidInfo.topic_title}`);
-    if (!isSure) return;
-    fetch("http://localhost:7777/video-request", {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        id: vidInfo._id,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => window.location.reload());
-  });
+
   if (state.isSuperUser) {
     adminChangeStatusElm.value = vidInfo.status;
     adminVideoResElm.value = vidInfo.video_ref.link;
@@ -133,8 +140,21 @@ function renderSingleVidReq(vidInfo, isPrepend = false) {
       }
       updateVideoStatus(vidInfo._id, "done", adminVideoResElm.value);
     });
+    adminDeleteVideoReqElm.addEventListener("click", (e) => {
+      const isSure = confirm(`are you sure to delete${vidInfo.topic_title}`);
+      if (!isSure) return;
+      fetch("http://localhost:7777/video-request", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: vidInfo._id,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => window.location.reload());
+    });
   }
-  applyVoteStyle(vidInfo._id, vidInfo.votes);
+  applyVoteStyle(vidInfo._id, vidInfo.votes, vidInfo.status == "done");
 
   const scoreVoteElm = document.getElementById(`score_vote_${vidInfo._id}`);
   const votesElms = document.querySelectorAll(
@@ -142,7 +162,7 @@ function renderSingleVidReq(vidInfo, isPrepend = false) {
   );
   //   console.log(votesElms);
   votesElms.forEach((elm) => {
-    if (state.isSuperUser) {
+    if (state.isSuperUser || vidInfo.status === "done") {
       return;
     }
     elm.addEventListener("click", function (e) {
@@ -157,7 +177,7 @@ function renderSingleVidReq(vidInfo, isPrepend = false) {
         .then((data) => {
           // console.log(data);
           scoreVoteElm.innerText = data.ups.length - data.downs.length;
-          applyVoteStyle(id, data, vote_type);
+          applyVoteStyle(id, data, vidInfo.status === "done", vote_type);
         });
     });
   });
@@ -188,10 +208,14 @@ function renderSingleVidReq(vidInfo, isPrepend = false) {
   //       });
   //   });
 }
-function loadAllVidReqs(sortBy = "newFirst", searchTerm = "") {
+function loadAllVidReqs(
+  sortBy = "newFirst",
+  searchTerm = "",
+  filterBy = "all"
+) {
   // console.log({sortBy})
   fetch(
-    `http://localhost:7777/video-request?sortBy=${sortBy}&searchTerm=${searchTerm}`
+    `http://localhost:7777/video-request?sortBy=${sortBy}&searchTerm=${searchTerm}&filterBy=${filterBy}`
   )
     .then((blob) => blob.json())
     .then((data) => {
@@ -245,11 +269,11 @@ function checkValidate(formData) {
 
   return true;
 }
-function applyVoteStyle(video_id, votes_list, vote_type) {
+function applyVoteStyle(video_id, votes_list, isDisabled, vote_type) {
   const voteUpsElm = document.getElementById(`votes_ups_${video_id}`);
   const voteDownsElm = document.getElementById(`votes_downs_${video_id}`);
 
-  if (state.isSuperUser) {
+  if (isDisabled) {
     voteUpsElm.style.opacity = "0.5";
     voteUpsElm.style.cursor = "not-allowed";
     voteDownsElm.style.opacity = "0.5";
@@ -293,8 +317,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const sortByElms = document.querySelectorAll("[id*=sort_by_]");
   const searchBoxElm = document.getElementById("search_box");
+  const filterByElm = document.querySelectorAll("[id^=filter_by_]");
   const formLoginElm = document.querySelector(".form-login");
   const appContentElm = document.querySelector(".app-content");
+
   if (window.location.search) {
     state.userId = new URLSearchParams(window.location.search).get("id");
     // console.log(userId);
@@ -306,6 +332,16 @@ document.addEventListener("DOMContentLoaded", function () {
     appContentElm.classList.remove("d-none");
   }
   loadAllVidReqs();
+  // console.log(filterByElm);
+  filterByElm.forEach((elm) => {
+    elm.addEventListener("click", function (e) {
+      e.preventDefault();
+      state.filterBy = e.target.getAttribute("id").split("_")[2];
+      filterByElm.forEach((option) => option.classList.remove("active"));
+      this.classList.add("active");
+      loadAllVidReqs(state.sortBy, state.searchTerm, state.filterBy);
+    });
+  });
   sortByElms.forEach((elm) => {
     elm.addEventListener("click", function (e) {
       // console.log(e);
@@ -313,7 +349,7 @@ document.addEventListener("DOMContentLoaded", function () {
       state.sortBy = this.querySelector("input").value;
 
       // console.log(sortBy);
-      loadAllVidReqs(state.sortBy);
+      loadAllVidReqs(state.sortBy, state.searchTerm, state.filterBy);
       this.classList.add("active");
       if (state.sortBy === "topVotedFirst") {
         document.getElementById("sort_by_new").classList.remove("active");
@@ -327,7 +363,7 @@ document.addEventListener("DOMContentLoaded", function () {
     "input",
     debounce((e) => {
       state.searchTerm = e.target.value;
-      loadAllVidReqs(state.sortBy, state.searchTerm);
+      loadAllVidReqs(state.sortBy, state.searchTerm, state.filterBy);
     }, 300)
   );
   formVidReqElm.addEventListener("submit", (e) => {
