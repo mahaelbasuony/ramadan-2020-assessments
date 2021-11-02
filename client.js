@@ -1,16 +1,45 @@
 const listOfVidsElm = document.getElementById("listOfRequests");
-
+const SUPER_USER_ID = "123";
 const state = {
     sortBy: "newFirst",
     searchTerm: "",
     userId: "",
+    isSuperUser: false,
 };
 
 function renderSingleVidReq(vidInfo, isPrepend = false) {
     const vidReqContainerElm = document.createElement("div");
     vidReqContainerElm.innerHTML = `
+   
     <div class="card mb-3">
-    <div class="card-body d-flex justify-content-between flex-row">
+    ${
+      state.isSuperUser
+        ? `
+        <div class="card-header d-flex flex-row justify-content-between">
+          <select id="admin_change_status_${vidInfo._id}">
+              <option value="new"> new</option>
+              <option value="planned">planned</option>
+              <option value="done">done</option>
+          </select>
+          <div class="input-group ml-3 mr-5 ${
+            vidInfo.status !== "done" ? "d-none" : ""
+          } " id="admin_video_res_container_${vidInfo._id}">
+              <input type="text" class="form-control" id="admin_video_res_${
+                vidInfo._id
+              }" placeholder="paste here youtube"/>
+              <div class="input-group-append">
+                  <button class="btn btn-outline-secondary"  id="admin_save_video_res_${
+                    vidInfo._id
+                  }" type="button">Save</button>
+              </div>
+          </div>
+         <button class="btn btn-danger" id="admin_delete_video_req_${
+           vidInfo._id
+         }">delete</button>
+        </div>`
+        : ""
+    }
+      <div class="card-body d-flex justify-content-between flex-row">
         <div class="d-flex flex-column">
             <h3>${vidInfo.topic_title}</h3>
             <p class="text-muted mb-2">${vidInfo.topic_details}</p>
@@ -32,7 +61,9 @@ function renderSingleVidReq(vidInfo, isPrepend = false) {
     </div>
     <div class="card-footer d-flex flex-row justify-content-between">
         <div>
-            <span class="text-info">${vidInfo.status.toUpperCase()}</span> &bullet; added by <strong>${
+            <span class="text-info">${
+              vidInfo.status
+            }</span> &bullet; added by <strong>${
     vidInfo.author_name
   }</strong> on
             <strong>${new Date(
@@ -45,11 +76,64 @@ function renderSingleVidReq(vidInfo, isPrepend = false) {
             </div>
         </div>
     </div>
+    
     </div>
     `;
   if (isPrepend) listOfVidsElm.prepend(vidReqContainerElm);
   else listOfVidsElm.appendChild(vidReqContainerElm);
-
+  const adminChangeStatusElm = document.getElementById(
+    `admin_change_status_${vidInfo._id}`
+  );
+  const adminVideoResElm = document.getElementById(
+    `admin_video_res_${vidInfo._id}`
+  );
+  const adminSaveVideoResElm = document.getElementById(
+    `admin_save_video_res_${vidInfo._id}`
+  );
+  const adminDeleteVideoReqElm = document.getElementById(
+    `admin_delete_video_req_${vidInfo._id}`
+  );
+  const adminVideoResContainer = document.getElementById(
+    `admin_video_res_container_${vidInfo._id}`
+  );
+  adminDeleteVideoReqElm.addEventListener("click", (e) => {
+    const isSure = confirm(`are you sure to delete${vidInfo.topic_title}`);
+    if (!isSure) return;
+    fetch("http://localhost:7777/video-request", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: vidInfo._id,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => window.location.reload());
+  });
+  if (state.isSuperUser) {
+    adminChangeStatusElm.value = vidInfo.status;
+    adminVideoResElm.value = vidInfo.video_ref.link;
+    adminChangeStatusElm.addEventListener("change", (e) => {
+      // console.log(adminVideoResElm.value);
+      if (e.target.value === "done") {
+        adminVideoResContainer.classList.remove("d-none");
+        updateVideoStatus(vidInfo._id, e.target.value);
+      } else {
+        e.preventDefault();
+        updateVideoStatus(vidInfo._id, e.target.value);
+      }
+    });
+    adminSaveVideoResElm.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!adminVideoResElm.value) {
+        adminVideoResElm.classList.add("is-invalid");
+        adminVideoResElm.addEventListener("input", () => {
+          adminVideoResElm.classList.remove("is-invalid");
+        });
+        return;
+      }
+      updateVideoStatus(vidInfo._id, "done", adminVideoResElm.value);
+    });
+  }
   applyVoteStyle(vidInfo._id, vidInfo.votes);
 
   const scoreVoteElm = document.getElementById(`score_vote_${vidInfo._id}`);
@@ -58,6 +142,9 @@ function renderSingleVidReq(vidInfo, isPrepend = false) {
   );
   //   console.log(votesElms);
   votesElms.forEach((elm) => {
+    if (state.isSuperUser) {
+      return;
+    }
     elm.addEventListener("click", function (e) {
       e.preventDefault();
       const [, vote_type, id] = e.target.getAttribute("id").split("_");
@@ -159,6 +246,16 @@ function checkValidate(formData) {
   return true;
 }
 function applyVoteStyle(video_id, votes_list, vote_type) {
+  const voteUpsElm = document.getElementById(`votes_ups_${video_id}`);
+  const voteDownsElm = document.getElementById(`votes_downs_${video_id}`);
+
+  if (state.isSuperUser) {
+    voteUpsElm.style.opacity = "0.5";
+    voteUpsElm.style.cursor = "not-allowed";
+    voteDownsElm.style.opacity = "0.5";
+    voteDownsElm.style.cursor = "not-allowed";
+    return;
+  }
   if (!vote_type) {
     if (votes_list.ups.includes(state.userId)) {
       vote_type = "ups";
@@ -168,9 +265,6 @@ function applyVoteStyle(video_id, votes_list, vote_type) {
       return;
     }
   }
-  const voteUpsElm = document.getElementById(`votes_ups_${video_id}`);
-  const voteDownsElm = document.getElementById(`votes_downs_${video_id}`);
-
   const voteDirElm = vote_type === "ups" ? voteUpsElm : voteDownsElm;
   const otherDirElm = vote_type === "ups" ? voteDownsElm : voteUpsElm;
   if (votes_list[vote_type].includes(state.userId)) {
@@ -180,6 +274,20 @@ function applyVoteStyle(video_id, votes_list, vote_type) {
     otherDirElm.style.opacity = "1";
   }
 }
+function updateVideoStatus(id, status, resVideo = "") {
+  fetch("http://localhost:7777/video-request", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      id,
+      status,
+      resVideo,
+    }),
+  })
+    .then((res) => res.json())
+    .then((data) => window.location.reload());
+}
+
 document.addEventListener("DOMContentLoaded", function () {
   const formVidReqElm = document.getElementById("formVideoRequest");
 
@@ -190,6 +298,10 @@ document.addEventListener("DOMContentLoaded", function () {
   if (window.location.search) {
     state.userId = new URLSearchParams(window.location.search).get("id");
     // console.log(userId);
+    if (state.userId === SUPER_USER_ID) {
+      state.isSuperUser = true;
+      document.querySelector(".normal-user-content").classList.add("d-none");
+    }
     formLoginElm.classList.add("d-none");
     appContentElm.classList.remove("d-none");
   }
