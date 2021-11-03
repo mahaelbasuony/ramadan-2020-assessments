@@ -1,10 +1,19 @@
-import { renderSingleVidReq } from "./renderSingleVidReq.js";
-import { state } from "./client.js";
-const listOfVidsElm = document.getElementById("listOfRequests");
-
+const apiUrl = "http://localhost:7777";
 export default {
-    updateVideoStatus: (id, status, resVideo = "") => {
-        fetch("http://localhost:7777/video-request", {
+    videoReq: {
+        get: (sortBy, searchTerm, filterBy) => {
+            return fetch(
+                `${apiUrl}/video-request?sortBy=${sortBy}&searchTerm=${searchTerm}&filterBy=${filterBy}`
+            ).then((blob) => blob.json());
+        },
+        post: (formData) => {
+            return fetch(`${apiUrl}/video-request`, {
+                method: "POST",
+                body: formData,
+            }).then((bolb) => bolb.json());
+        },
+        update: (id, status, resVideo) => {
+            return fetch(`${apiUrl}/video-request`, {
                 method: "PUT",
                 headers: { "content-type": "application/json" },
                 body: JSON.stringify({
@@ -12,28 +21,25 @@ export default {
                     status,
                     resVideo,
                 }),
-            })
-            .then((res) => res.json())
-            .then((data) => window.location.reload());
+            }).then((res) => res.json());
+        },
+        delete: (id) => {
+            return fetch(`${apiUrl}/video-request`, {
+                method: "DELETE",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({
+                    id,
+                }),
+            }).then((res) => res.json());
+        },
     },
-    loadAllVidReqs: (
-        sortBy = "newFirst",
-        searchTerm = "",
-        filterBy = "all",
-        localState = state
-    ) => {
-        // console.log({sortBy})
-        fetch(
-                `http://localhost:7777/video-request?sortBy=${sortBy}&searchTerm=${searchTerm}&filterBy=${filterBy}`
-            )
-            .then((blob) => blob.json())
-            .then((data) => {
-                listOfVidsElm.innerHTML = "";
-                // console.log(data);
-
-                data.forEach((vidInfo) => {
-                    renderSingleVidReq(vidInfo, localState);
-                });
-            });
+    votes: {
+        update: (id, vote_type, user_id, satte, vidStatus) => {
+            return fetch(`${apiUrl}/video-request/vote`, {
+                method: "PUT",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ id, vote_type, user_id }),
+            }).then((bolb) => bolb.json());
+        },
     },
 };

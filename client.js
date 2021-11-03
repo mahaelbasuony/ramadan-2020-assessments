@@ -1,8 +1,10 @@
 // const { filter } = require("bluebird");
-import API from "./api.js";
+
 import { debounce } from "./debounce.js";
 import { renderSingleVidReq } from "./renderSingleVidReq.js";
 import { checkValidate } from "./checkValidate.js";
+import api from "./api.js";
+import dataService from "./dataService.js";
 const SUPER_USER_ID = "123";
 export const state = {
     sortBy: "newFirst",
@@ -31,7 +33,7 @@ document.addEventListener("DOMContentLoaded", function() {
         formLoginElm.classList.add("d-none");
         appContentElm.classList.remove("d-none");
     }
-    API.loadAllVidReqs();
+    dataService.loadAllVidReqs();
     // console.log(filterByElm);
     filterByElm.forEach((elm) => {
         elm.addEventListener("click", function(e) {
@@ -39,7 +41,11 @@ document.addEventListener("DOMContentLoaded", function() {
             state.filterBy = e.target.getAttribute("id").split("_")[2];
             filterByElm.forEach((option) => option.classList.remove("active"));
             this.classList.add("active");
-            API.loadAllVidReqs(state.sortBy, state.searchTerm, state.filterBy);
+            dataService.loadAllVidReqs(
+                state.sortBy,
+                state.searchTerm,
+                state.filterBy
+            );
         });
     });
     sortByElms.forEach((elm) => {
@@ -49,7 +55,11 @@ document.addEventListener("DOMContentLoaded", function() {
             state.sortBy = this.querySelector("input").value;
 
             // console.log(sortBy);
-            API.loadAllVidReqs(state.sortBy, state.searchTerm, state.filterBy);
+            dataService.loadAllVidReqs(
+                state.sortBy,
+                state.searchTerm,
+                state.filterBy
+            );
             this.classList.add("active");
             if (state.sortBy === "topVotedFirst") {
                 document.getElementById("sort_by_new").classList.remove("active");
@@ -63,7 +73,11 @@ document.addEventListener("DOMContentLoaded", function() {
         "input",
         debounce((e) => {
             state.searchTerm = e.target.value;
-            API.loadAllVidReqs(state.sortBy, state.searchTerm, state.filterBy);
+            dataService.loadAllVidReqs(
+                state.sortBy,
+                state.searchTerm,
+                state.filterBy
+            );
         }, 300)
     );
     formVidReqElm.addEventListener("submit", (e) => {
@@ -72,15 +86,8 @@ document.addEventListener("DOMContentLoaded", function() {
         formData.append("author_id", state.userId);
         const isvalid = checkValidate(formData);
         if (!isvalid) return;
-        // console.log(e);
-        fetch("http://localhost:7777/video-request", {
-                method: "POST",
-                body: formData,
-            })
-            .then((bolb) => bolb.json())
-            .then((data) => {
-                // console.log(data);
-                renderSingleVidReq(data, state, (isPrepend = true));
-            });
+        dataService.addvideoReq(formData).then((data) => {
+            renderSingleVidReq(data, state, (isPrepend = true));
+        });
     });
 });
